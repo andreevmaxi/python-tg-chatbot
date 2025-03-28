@@ -1,0 +1,10 @@
+FROM python:3.11-slim
+
+# Сначала копируем зависимости для кэширования
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Затем копируем остальные файлы
+COPY . .
+
+CMD ["python", "bot_main.py"]
