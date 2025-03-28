@@ -83,6 +83,8 @@ async def build_main_keyboard(user_id: int):
     return builder.as_markup(resize_keyboard=True)
 
 
+
+
 @dp.message(Command("start", "help"))
 async def cmd_start(message: types.Message):
     user_id = message.from_user.id
