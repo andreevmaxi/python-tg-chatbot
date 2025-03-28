@@ -7,4 +7,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Затем копируем остальные файлы
 COPY . .
 
+ENV DOCKER_ENV=true
+
 CMD ["python", "bot_main.py"]

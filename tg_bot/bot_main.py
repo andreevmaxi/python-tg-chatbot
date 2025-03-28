@@ -1,3 +1,4 @@
+import sys
 import os
 import logging
 from aiogram import Bot, Dispatcher, types, F
@@ -5,12 +6,22 @@ from aiogram.filters import Command
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 from dotenv import load_dotenv
 import asyncio
+from openai import OpenAI
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from src.database import db
 
 load_dotenv()
 bot = Bot(token=os.getenv("TELEGRAM_TOKEN"))
 dp = Dispatcher()
 
-user_languages = {}
+# Инициализация OpenAI клиента
+openai_client = OpenAI(api_key=os.getenv("OPENAI_KEY"))
+
+# ID ассистента и файла (заполнятся при первом запуске)
+ASSISTANT_ID = os.getenv("ASSISTANT_ID") or None
+FILE_ID = os.getenv("FILE_ID") or None
 
 translations = {
     "ru": {
@@ -51,8 +62,8 @@ translations = {
     }
 }
 
-def find_matching_intent(user_id: int, text: str) -> str:
-    lang = user_languages.get(user_id, 'ru')
+async def find_matching_intent(user_id: int, text: str) -> str:
+    lang = await db.get_user_language(user_id)
     text = text.lower()
 
     # Проверка ключевых слов для латокен
@@ -65,32 +76,29 @@ def find_matching_intent(user_id: int, text: str) -> str:
 
     return None
 
-def get_translation(user_id: int, key: str) -> str:
-    lang = user_languages.get(user_id, 'ru')
+async def get_translation(user_id: int, key: str) -> str:
+    lang = await db.get_user_language(user_id)
     return translations[lang].get(key, key)
 
 
 async def build_main_keyboard(user_id: int):
     builder = ReplyKeyboardBuilder()
     builder.row(
-        types.KeyboardButton(text=get_translation(user_id, "about_latoken")),
-        types.KeyboardButton(text=get_translation(user_id, "about_hackathon"))
+        types.KeyboardButton(text=await get_translation(user_id, "about_latoken")),
+        types.KeyboardButton(text=await get_translation(user_id, "about_hackathon"))
     )
     builder.row(
-        types.KeyboardButton(text=get_translation(user_id, "refresh_buttons")),
-        types.KeyboardButton(text=get_translation(user_id, "change_language"))
+        types.KeyboardButton(text=await get_translation(user_id, "refresh_buttons")),
+        types.KeyboardButton(text=await get_translation(user_id, "change_language"))
     )
     return builder.as_markup(resize_keyboard=True)
-
-
 
 
 @dp.message(Command("start", "help"))
 async def cmd_start(message: types.Message):
     user_id = message.from_user.id
-    user_languages.setdefault(user_id, 'ru')
     await message.answer(
-        get_translation(user_id, "welcome"),
+        await get_translation(user_id, "welcome"),
         reply_markup=await build_main_keyboard(user_id)
     )
 
@@ -99,7 +107,7 @@ async def cmd_start(message: types.Message):
 async def refresh_buttons(message: types.Message):
     user_id = message.from_user.id
     await message.answer(
-        get_translation(user_id, "buttons_updated"),
+        await get_translation(user_id, "buttons_updated"),
         reply_markup=await build_main_keyboard(user_id)
     )
 
@@ -109,11 +117,11 @@ async def change_language(message: types.Message):
     user_id = message.from_user.id
     builder = ReplyKeyboardBuilder()
     builder.row(
-        types.KeyboardButton(text=get_translation(user_id, "russian_lang")),
-        types.KeyboardButton(text=get_translation(user_id, "english_lang"))
+        types.KeyboardButton(text=await get_translation(user_id, "russian_lang")),
+        types.KeyboardButton(text=await get_translation(user_id, "english_lang"))
     )
     await message.answer(
-        get_translation(user_id, "choose_language"),
+        await get_translation(user_id, "choose_language"),
         reply_markup=builder.as_markup(resize_keyboard=True)
     )
 
@@ -121,7 +129,7 @@ async def change_language(message: types.Message):
 @dp.message(F.text.in_([t["russian_lang"] for t in translations.values()]))
 async def set_russian(message: types.Message):
     user_id = message.from_user.id
-    user_languages[user_id] = 'ru'
+    await db.set_user_language(user_id, 'ru')
     await message.answer("Язык изменён на Русский ✅")
     await cmd_start(message)
 
@@ -129,7 +137,7 @@ async def set_russian(message: types.Message):
 @dp.message(F.text.in_([t["english_lang"] for t in translations.values()]))
 async def set_english(message: types.Message):
     user_id = message.from_user.id
-    user_languages[user_id] = 'en'
+    await db.set_user_language(user_id, 'en')
     await message.answer("Language changed to English ✅")
     await cmd_start(message)
 
@@ -139,22 +147,35 @@ async def handle_buttons(message: types.Message):
     user_id = message.from_user.id
     text = message.text
 
-    if text == get_translation(user_id, "about_latoken"):
-        await message.answer(get_translation(user_id, "latoken_info"))
-    elif text == get_translation(user_id, "about_hackathon"):
-        await message.answer(get_translation(user_id, "hackathon_info"))
+    if text == await get_translation(user_id, "about_latoken"):
+        await message.answer(await get_translation(user_id, "latoken_info"))
+    elif text == await get_translation(user_id, "about_hackathon"):
+        await message.answer(await get_translation(user_id, "hackathon_info"))
 
     # Обработка текстовых запросов
     else:
-        intent = find_matching_intent(user_id, text)
+        intent = await find_matching_intent(user_id, text)
         if intent:
-            await message.answer(get_translation(user_id, intent))
+            await message.answer(await get_translation(user_id, intent))
         else:
-            await message.answer(get_translation(user_id, "unknown"))
+            await message.answer(await get_translation(user_id, "unknown"))
 
 
 async def main():
-    await dp.start_polling(bot)
+    # Инициализация БД
+    try:
+        await db.connect()
+        logging.info("Database connected successfully")
+    except Exception as e:
+        logging.error(f"Database connection error: {e}")
+        return
+
+    # Запуск бота
+    try:
+        await dp.start_polling(bot)
+    finally:
+        await db.close()
+        logging.info("Database connection closed")
 
 
 if __name__ == "__main__":
