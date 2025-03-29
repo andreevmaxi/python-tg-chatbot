@@ -18,9 +18,6 @@ load_dotenv()
 bot = Bot(token=os.getenv("TELEGRAM_TOKEN"))
 dp = Dispatcher()
 
-# Инициализация OpenAI клиента
-openai_client = OpenAIIntegration(os.getenv("OPENAI_KEY"))
-
 scraper = CultureDeckScraper()
 
 # ID ассистента и файла (заполнятся при первом запуске)
@@ -141,7 +138,6 @@ async def get_culture_deck_summary(user_id: int):
 @dp.message(F.text.in_([t["about_culture_deck"] for t in translations.values()]))
 async def culture_deck_info(message: types.Message):
     user_id = message.from_user.id
-    data = await get_culture_deck_summary(user_id)
     keyboard = ReplyKeyboardBuilder()
     keyboard.row(
         types.KeyboardButton(text=await get_translation(user_id, "know_more")),
@@ -254,9 +250,13 @@ async def main():
         await db.connect()
         logging.info("Database connected successfully")
 
+        # Инициализация OpenAI клиента
+        openai_client = OpenAIIntegration(os.getenv("OPENAI_KEY"))
+        logging.info("Openai client created successfully")
+
         # Проверяем русский Culture Deck
         culture_data_ru = await db.get_culture_deck("ru")
-        if not culture_data_ru or culture_data_ru["summary"] is None:
+        if not culture_data_ru or culture_data_ru["summary"] is None or culture_data_ru["summary"] == '':
             print("Отсутствует summary_ru, генерируем...")
             raw_data = scraper.get_content("https://coda.io/@latoken/latoken-talent/culture-139")
             summary = await openai_client.generate_summaries(raw_data["main_content"], "ru")
@@ -264,7 +264,7 @@ async def main():
 
         # Проверяем английский Culture Deck
         culture_data_en = await db.get_culture_deck("en")
-        if not culture_data_en or culture_data_en["summary"] is None:
+        if not culture_data_en or culture_data_en["summary"] is None or culture_data_en["summary"] == '':
             print("Отсутствует summary_en, генерируем...")
             raw_data = scraper.get_content("https://coda.io/@latoken/latoken-talent/culture-139")
             summary= await openai_client.generate_summaries(raw_data["main_content"], "en")

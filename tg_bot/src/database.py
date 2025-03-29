@@ -18,15 +18,15 @@ class Database:
             return os.getenv('LOCAL_DB_URL')
 
     async def connect(self):
-        """Инициализация подключения к БД"""
-        if not self.pool:
+        try:
             self.pool = await asyncpg.create_pool(
                 dsn=self.get_db_url(),
-                min_size=5,
-                max_size=20,
-                command_timeout=30
+                min_size=1,  # Минимальное количество соединений
+                max_size=10  # Максимальное количество соединений
             )
-            print("Database connection pool created")
+            print("✅ Database pool created successfully!")
+        except Exception as e:
+            print(f"❌ Database connection error: {e}")
 
     async def close(self):
         """Закрытие подключения"""

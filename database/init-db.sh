@@ -18,6 +18,14 @@ CREATE TABLE IF NOT EXISTS culture_deck (
     link TEXT NOT NULL
 );
 
+INSERT INTO culture_deck (language, main_content, additional_contents, summary_ru, summary_en, link)
+VALUES ('ru', '', '', '', '', 'https://coda.io/@latoken/latoken-talent/culture-139')
+ON CONFLICT (language) DO NOTHING;
+
+INSERT INTO culture_deck (language, main_content, additional_contents, summary_ru, summary_en, link)
+VALUES ('en', '', '', '', '', 'https://coda.io/@latoken/latoken-talent/culture-139')
+ON CONFLICT (language) DO NOTHING;
+
 -- Таблица OpenAI ассетов
 CREATE TABLE IF NOT EXISTS openai_assets (
     id SERIAL PRIMARY KEY,
