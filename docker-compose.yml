@@ -33,6 +33,11 @@ services:
       - ./tg_bot/.env
     networks:
       - bot-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
 
 networks:
   bot-network:

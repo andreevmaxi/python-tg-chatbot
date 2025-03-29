@@ -1,12 +1,31 @@
 FROM python:3.11-slim
 
-# Сначала копируем зависимости для кэширования
+# Установка Chrome
+RUN apt-get update && \
+    apt-get install -y wget gnupg && \
+    wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - && \
+    echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list && \
+    apt-get update && \
+    apt-get install -y \
+    google-chrome-stable \
+    fonts-liberation \
+    libglib2.0-0 \
+    libnss3 \
+    libx11-6 \
+    xvfb \
+    libgconf-2-4 \
+    libxtst6 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Настройка виртуального дисплея
+ENV DISPLAY=:99
+ENV XVFB_WHD=1920x1080x24
+ENV CHROME_BIN=/usr/bin/google-chrome
+
+WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Затем копируем остальные файлы
 COPY . .
 
-ENV DOCKER_ENV=true
-
-CMD ["python", "bot_main.py"]
+# Запуск Xvfb и бота
+CMD ["xvfb-run", "--auto-servernum", "python", "bot_main.py"]
